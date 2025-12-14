@@ -1546,7 +1546,7 @@ requires-dist = [
     { name = "accelerate", marker = "extra == 'vlm'", specifier = ">=1.2.1,<2.0.0" },
     { name = "beautifulsoup4", specifier = ">=4.12.3,<5.0.0" },
     { name = "certifi", specifier = ">=2024.7.4" },
-    { name = "docling-core", extras = ["chunking"], git = "ssh://git@github.com/docling-project/docling-core.git?rev=1b8d5f2aff6ffef2be82b31ee31d0054ec4c7c6f" },
+    { name = "docling-core", extras = ["chunking"], git = "ssh://git@github.com/docling-project/docling-core.git?rev=c75516516358f25add2682674fc7dc6eef2c5164" },
     { name = "docling-ibm-models", specifier = ">=3.9.1,<4" },
     { name = "docling-parse", specifier = ">=4.7.0,<5.0.0" },
     { name = "easyocr", marker = "extra == 'easyocr'", specifier = ">=1.7,<2.0" },
@@ -1632,7 +1632,7 @@ examples = [
 [[package]]
 name = "docling-core"
 version = "2.55.0"
-source = { git = "ssh://git@github.com/docling-project/docling-core.git?rev=1b8d5f2aff6ffef2be82b31ee31d0054ec4c7c6f#1b8d5f2aff6ffef2be82b31ee31d0054ec4c7c6f" }
+source = { git = "ssh://git@github.com/docling-project/docling-core.git?rev=c75516516358f25add2682674fc7dc6eef2c5164#c75516516358f25add2682674fc7dc6eef2c5164" }
 dependencies = [
     { name = "jsonref" },
     { name = "jsonschema" },
