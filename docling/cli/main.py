@@ -295,45 +295,76 @@ def export_documents(
                             table_img_name = f"{doc_filename}_table_{i}.png"
                             table_img_path = output_dir / table_img_name
                             table.image.pil_image.save(table_img_path)
-                            tables_saved.append(table_img_name)
+                            tables_saved.append((i, table_img_name, table.self_ref))
                             _log.debug(f"Saved table image: {table_img_path}")
                     
                     if tables_saved:
                         _log.info(f"Saved {len(tables_saved)} table images")
-                        # Insert table image links into markdown file
+                        
+                        # Read markdown content
                         with open(fname, 'r', encoding='utf-8') as f:
                             content = f.read()
                         
-                        # Strategy 1: Find markdown table blocks and insert after them
+                        # Strategy: Find table position in document body and match with markdown
+                        # Get text items that come after each table
+                        from docling_core.types.doc import RefItem
+                        
+                        table_contexts = {}  # table_ref -> text that follows
+                        body_children = list(conv_res.document.body.children)
+                        
+                        for idx, item in enumerate(body_children):
+                            if isinstance(item, RefItem) and str(item.cref).startswith('#/tables/'):
+                                table_ref = str(item.cref)
+                                # Get the next text item after this table
+                                for next_idx in range(idx + 1, min(idx + 5, len(body_children))):
+                                    next_item = body_children[next_idx]
+                                    if isinstance(next_item, RefItem):
+                                        next_ref = str(next_item.cref)
+                                        if next_ref.startswith('#/texts/'):
+                                            try:
+                                                text_idx = int(next_ref.split('/')[-1])
+                                                if text_idx < len(conv_res.document.texts):
+                                                    text_item = conv_res.document.texts[text_idx]
+                                                    if hasattr(text_item, 'text') and text_item.text:
+                                                        # Use first 30 chars as marker
+                                                        marker = text_item.text[:30].strip()
+                                                        if marker:
+                                                            table_contexts[table_ref] = marker
+                                                            break
+                                            except (ValueError, IndexError):
+                                                pass
+                        
+                        # Insert image links before the text that follows each table
                         lines = content.split('\n')
-                        new_lines = []
-                        table_index = 0
-                        in_table = False
+                        new_content = content
                         
-                        for line in lines:
-                            new_lines.append(line)
-                            if line.strip().startswith('|'):
-                                in_table = True
-                            elif in_table:
-                                in_table = False
-                                if table_index < len(tables_saved):
-                                    img_name = tables_saved[table_index]
-                                    new_lines.append(f"\n![Table {table_index + 1}]({img_name})")
-                                    table_index += 1
+                        for table_idx, img_name, table_ref in tables_saved:
+                            if table_ref in table_contexts:
+                                marker = table_contexts[table_ref]
+                                # Find the marker in content and insert image before it
+                                import re
+                                # Escape special regex characters
+                                escaped_marker = re.escape(marker)
+                                pattern = f"({escaped_marker})"
+                                replacement = f"![Table {table_idx + 1}]({img_name})\n\n\\1"
+                                new_content, count = re.subn(pattern, replacement, new_content, count=1)
+                                if count > 0:
+                                    _log.debug(f"Inserted table {table_idx} image before: {marker[:20]}...")
+                            else:
+                                # Fallback: check if markdown table exists and insert after
+                                pass
                         
-                        if in_table and table_index < len(tables_saved):
-                            img_name = tables_saved[table_index]
-                            new_lines.append(f"\n![Table {table_index + 1}]({img_name})")
-                            table_index += 1
-                        
-                        # Strategy 2: If no tables found in markdown, append at end
-                        if table_index == 0 and tables_saved:
-                            new_lines.append("\n\n## Table Images\n")
-                            for i, img_name in enumerate(tables_saved):
-                                new_lines.append(f"\n![Table {i + 1}]({img_name})")
+                        # Check if any tables weren't inserted - append at end
+                        inserted_count = sum(1 for _, name, ref in tables_saved if ref in table_contexts)
+                        if inserted_count < len(tables_saved):
+                            remaining = [(idx, name) for idx, name, ref in tables_saved if ref not in table_contexts]
+                            if remaining:
+                                new_content += "\n\n## Table Images\n"
+                                for idx, name in remaining:
+                                    new_content += f"\n![Table {idx + 1}]({name})"
                         
                         with open(fname, 'w', encoding='utf-8') as f:
-                            f.write('\n'.join(new_lines))
+                            f.write(new_content)
 
             # Export Document Tags format:
             if export_doctags:
