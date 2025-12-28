@@ -285,6 +285,55 @@ def export_documents(
                 conv_res.document.save_as_markdown(
                     filename=fname, image_mode=image_export_mode
                 )
+                
+                # Export table images if image export mode is REFERENCED or EMBEDDED
+                # Tables are not included in save_as_markdown by default
+                if image_export_mode in (ImageRefMode.REFERENCED, ImageRefMode.EMBEDDED):
+                    tables_saved = []
+                    for i, table in enumerate(conv_res.document.tables):
+                        if hasattr(table, 'image') and table.image is not None:
+                            table_img_name = f"{doc_filename}_table_{i}.png"
+                            table_img_path = output_dir / table_img_name
+                            table.image.pil_image.save(table_img_path)
+                            tables_saved.append(table_img_name)
+                            _log.debug(f"Saved table image: {table_img_path}")
+                    
+                    if tables_saved:
+                        _log.info(f"Saved {len(tables_saved)} table images")
+                        # Insert table image links into markdown file
+                        with open(fname, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                        
+                        # Strategy 1: Find markdown table blocks and insert after them
+                        lines = content.split('\n')
+                        new_lines = []
+                        table_index = 0
+                        in_table = False
+                        
+                        for line in lines:
+                            new_lines.append(line)
+                            if line.strip().startswith('|'):
+                                in_table = True
+                            elif in_table:
+                                in_table = False
+                                if table_index < len(tables_saved):
+                                    img_name = tables_saved[table_index]
+                                    new_lines.append(f"\n![Table {table_index + 1}]({img_name})")
+                                    table_index += 1
+                        
+                        if in_table and table_index < len(tables_saved):
+                            img_name = tables_saved[table_index]
+                            new_lines.append(f"\n![Table {table_index + 1}]({img_name})")
+                            table_index += 1
+                        
+                        # Strategy 2: If no tables found in markdown, append at end
+                        if table_index == 0 and tables_saved:
+                            new_lines.append("\n\n## Table Images\n")
+                            for i, img_name in enumerate(tables_saved):
+                                new_lines.append(f"\n![Table {i + 1}]({img_name})")
+                        
+                        with open(fname, 'w', encoding='utf-8') as f:
+                            f.write('\n'.join(new_lines))
 
             # Export Document Tags format:
             if export_doctags:
@@ -669,6 +718,7 @@ def convert(  # noqa: C901
                 pipeline_options.generate_picture_images = (
                     True  # FIXME: to be deprecated in version 3
                 )
+                pipeline_options.generate_table_images = True  # Export tables as images
                 pipeline_options.images_scale = 2
 
             backend: Type[PdfDocumentBackend]
